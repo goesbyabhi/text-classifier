@@ -1,0 +1,28 @@
+# wrangler.toml — the tracked example. Copy to wrangler.toml (gitignored) and
+# fill in the account-specific ids: account_id, and any KV id.
+# Keep this file as the single source of the deployment shape (crons,
+# bindings, migrations); never put real identifiers in it.
+name = "text-classifier"
+main = "src/index.py"
+compatibility_date = "2026-09-08"
+compatibility_flags = ["python_workers"]
+
+# Per-IP rate limiting lives in a Durable Object: KV is eventually-consistent
+# and the platform ratelimit binding was abandoned upstream. A DO is
+# single-threaded and strongly consistent, which is what a counter needs.
+[[durable_objects.bindings]]
+name = "LIMITER"
+class_name = "RateLimiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RateLimiter"]
+
+# Frozen pretrained sentence embeddings: bge-small-en-v1.5.
+[ai]
+binding = "AI"
+
+# Analytics: tier, labels fingerprint, status, latency, count. No request text.
+[[analytics_engine_datasets]]
+binding = "AE"
+dataset = "TEXT_CLASSIFIER"

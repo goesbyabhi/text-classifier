@@ -1,0 +1,24 @@
+[project]
+name = "text-classifier"
+version = "0.1.0"
+description = "Zero-shot text classification over plain HTTP. A Cloudflare Python Worker."
+requires-python = ">=3.13"
+dependencies = [
+    "numpy",
+]
+
+[dependency-groups]
+dev = [
+    "workers-py",
+    "workers-runtime-sdk",
+    "pytest",
+]
+
+[tool.uv]
+# Keep the lockfile lean for the Worker bundle: only runtime deps ship there.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The runtime SDK (workers.*) is not importable outside the Worker, so the
+# tests target the plain modules in src/ and never import src/index.py.
+pythonpath = ["src", "mcp"]
