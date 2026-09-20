@@ -88,6 +88,14 @@ most effort on. Keep it numpy-pure so it runs inside the Worker.
   math on eval numbers, not feel.
 - `eval/` must pin exactly how a number was measured; never type a measured
   number into docs by hand.
+- Request path efficiency lives in `src/embeddings.py`:
+  `embed_labels_and_texts` issues the label batch and the input batch
+  concurrently (they overlap, so two calls cost about one call's wall time) and
+  memoises label vectors in a bounded per-isolate LRU keyed by a fingerprint.
+  Labels and inputs are deliberately embedded in SEPARATE batches — an
+  embedding shifts slightly with its batch's padding, and the calibration was
+  fit on labels-alone/inputs-alone batches, so mixing them would silently move
+  scores off the fitted regime. Input text is never cached.
 
 ## Conventions
 

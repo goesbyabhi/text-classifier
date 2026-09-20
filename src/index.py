@@ -8,7 +8,9 @@ all the math and parsing live in plain modules (classifier, embeddings,
 query, limiter, unintelligible) that pytest exercises directly.
 
 Request text is never logged or stored. Analytics rows carry tier, label
-fingerprint, country, status, timing and counts only.
+fingerprint, country, status, timing and counts only. Label vectors are
+memoised in-process (fingerprint-keyed, bounded, never persisted); input text
+is never cached.
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ from workers import WorkerEntrypoint, Response
 from benchmark import get_benchmark
 from classifier import Scorer, load_calibration
 from docs import DOCS
-from embeddings import WorkersAIEmbedder
+from embeddings import LabelEmbeddingCache, WorkersAIEmbedder, embed_labels_and_texts
 from home import page as home_page
 from limiter import RateLimiter  # noqa: F401  (see wrangler class_name)
 from query import USAGE, has_classify_query, read_get, suggest
@@ -233,10 +235,11 @@ class Default(WorkerEntrypoint):
     # ---- classification pipeline -----------------------------------------
 
     def _embed(self):
-        """Build (once per isolate) the embedder and scorer from the binding."""
+        """Build (once per isolate) the embedder, scorer and label cache."""
         if getattr(self, "_embedder", None) is None:
             self._embedder = WorkersAIEmbedder(self.env.AI)
             self._scorer = Scorer(load_calibration(None, embedder=self._embedder.name))
+            self._label_cache = LabelEmbeddingCache()
         return self._embedder, self._scorer
 
     async def _classify(self, request, path, origin, ip, country, agent):
@@ -359,8 +362,9 @@ class Default(WorkerEntrypoint):
         # ---- score ---------------------------------------------------------
         started = time.time()
         try:
-            label_embs = await embedder.embed_texts(labels)
-            text_embs = await embedder.embed_texts(inputs)
+            label_embs, text_embs = await embed_labels_and_texts(
+                embedder, labels, inputs, self._label_cache
+            )
         except Exception as e:  # noqa: BLE001
             return fail(f"upstream: {e}", 502, "upstream_other", ms=int((time.time() - started) * 1000))
 
